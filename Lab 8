@@ -1,0 +1,141 @@
+-- 1. Update salary of instructors in a given department and insert records in the salary_raise table:
+DECLARE
+    CURSOR instructor_cursor IS
+        SELECT instructor_id, salary
+        FROM instructors
+        WHERE dept_name = 'Computer Science'; -- Example department name
+        
+    raise_amt NUMBER := 0.05; -- 5% raise
+    
+    v_raise_date DATE := SYSDATE; -- Current date
+BEGIN
+    FOR instructor_rec IN instructor_cursor LOOP
+        UPDATE instructors
+        SET salary = instructor_rec.salary * (1 + raise_amt)
+        WHERE instructor_id = instructor_rec.instructor_id;
+        
+        INSERT INTO salary_raise (Instructor_Id, Raise_date, Raise_amt)
+        VALUES (instructor_rec.instructor_id, v_raise_date, instructor_rec.salary * raise_amt);
+    END LOOP;
+    
+    COMMIT; -- Commit changes
+    DBMS_OUTPUT.PUT_LINE('Salary updated for instructors in the Computer Science department.');
+END;
+/
+
+-- 2. Display details of the first 10 students with the lowest total credit:
+DECLARE
+    CURSOR student_cursor IS
+        SELECT student_id, name, dept_name, tot_cred
+        FROM students
+        ORDER BY tot_cred
+        FETCH FIRST 10 ROWS ONLY; -- Fetch first 10 rows
+    
+    student_rec students%ROWTYPE;
+BEGIN
+    FOR student_rec IN student_cursor LOOP
+        DBMS_OUTPUT.PUT_LINE('Student ID: ' || student_rec.student_id || ', Name: ' || student_rec.name || ', Department: ' || student_rec.dept_name || ', Total Credits: ' || student_rec.tot_cred);
+    END LOOP;
+END;
+/
+
+-- 3. Print course details and total number of students registered for each course:
+DECLARE
+    CURSOR course_cursor IS
+        SELECT c.course_id, c.title, c.dept_name, c.credits, i.name AS instructor_name, b.building, b.room_number, ts.time_slot_id, COUNT(e.student_id) AS tot_student_no
+        FROM courses c
+        JOIN instructors i ON c.instructor_id = i.instructor_id
+        JOIN classrooms cl ON c.classroom_id = cl.classroom_id
+        JOIN buildings b ON cl.building = b.building_name
+        JOIN time_slots ts ON c.time_slot_id = ts.time_slot_id
+        LEFT JOIN enrollments e ON c.course_id = e.course_id
+        GROUP BY c.course_id, c.title, c.dept_name, c.credits, i.name, b.building, b.room_number, ts.time_slot_id;
+        
+    course_rec course_cursor%ROWTYPE;
+BEGIN
+    FOR course_rec IN course_cursor LOOP
+        DBMS_OUTPUT.PUT_LINE('Course ID: ' || course_rec.course_id || ', Title: ' || course_rec.title || ', Department: ' || course_rec.dept_name || ', Credits: ' || course_rec.credits || ', Instructor: ' || course_rec.instructor_name || ', Building: ' || course_rec.building || ', Room Number: ' || course_rec.room_number || ', Time Slot ID: ' || course_rec.time_slot_id || ', Total Students: ' || course_rec.tot_student_no);
+    END LOOP;
+END;
+/
+
+-- 4. Deregister students from course CS101 if they have less than 30 total credits:
+DECLARE
+    v_student_id students.student_id%TYPE;
+BEGIN
+    FOR deregister_rec IN (SELECT student_id FROM takes WHERE course_id = 'CS101') LOOP
+        SELECT tot_cred INTO v_tot_cred FROM students WHERE student_id = deregister_rec.student_id;
+        IF v_tot_cred < 30 THEN
+            DELETE FROM takes WHERE student_id = deregister_rec.student_id AND course_id = 'CS101';
+        END IF;
+    END LOOP;
+    
+    COMMIT; -- Commit changes
+    DBMS_OUTPUT.PUT_LINE('Students with less than 30 total credits deregistered from CS101 course.');
+END;
+/
+
+-- 5. Alter StudentTable and update LetterGrade to 'F', then update GPA based on the corresponding letter grade:
+ALTER TABLE StudentTable MODIFY LetterGrade VARCHAR2(1) DEFAULT 'F';
+
+DECLARE
+    CURSOR student_cursor IS
+        SELECT student_id, GPA
+        FROM StudentTable;
+    
+    v_letter_grade VARCHAR2(1);
+BEGIN
+    FOR student_rec IN student_cursor LOOP
+        IF student_rec.GPA >= 4.0 THEN
+            v_letter_grade := 'A';
+        ELSIF student_rec.GPA >= 3.0 THEN
+            v_letter_grade := 'B';
+        ELSIF student_rec.GPA >= 2.0 THEN
+            v_letter_grade := 'C';
+        ELSIF student_rec.GPA >= 1.0 THEN
+            v_letter_grade := 'D';
+        ELSE
+            v_letter_grade := 'F';
+        END IF;
+        
+        UPDATE StudentTable
+        SET LetterGrade = v_letter_grade
+        WHERE student_id = student_rec.student_id;
+    END LOOP;
+    
+    COMMIT; -- Commit changes
+    DBMS_OUTPUT.PUT_LINE('LetterGrade and GPA updated for all students.');
+END;
+/
+
+-- 6. Print list of instructors teaching a specified course:
+DECLARE
+    v_course_id courses.course_id%TYPE := 'CS101'; -- Specify course ID
+BEGIN
+    FOR instructor_rec IN (SELECT i.name
+                           FROM instructors i
+                           JOIN courses c ON i.instructor_id = c.instructor_id
+                           WHERE c.course_id = v_course_id) LOOP
+        DBMS_OUTPUT.PUT_LINE('Instructor: ' || instructor_rec.name);
+    END LOOP;
+END;
+/
+
+-- 7. List students who have registered for a course taught by their advisor:
+DECLARE
+    advisor_id students.advisor_id%TYPE;
+BEGIN
+    FOR student_rec IN (SELECT student_id, advisor_id FROM students) LOOP
+        SELECT advisor_id INTO advisor_id FROM students WHERE student_id = student_rec.student_id;
+        
+        FOR course_rec IN (SELECT t.course_id
+                            FROM takes t
+                            JOIN courses c ON t.course_id = c.course_id
+                            WHERE t.student_id = student_rec.student_id
+                            AND c.instructor_id = advisor_id) LOOP
+            DBMS_OUTPUT.PUT_LINE('Student ID: ' || student_rec.student_id || ', Course ID: ' || course_rec.course_id);
+        END LOOP;
+    END LOOP;
+END;
+/
+
