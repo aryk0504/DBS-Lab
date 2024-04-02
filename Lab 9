@@ -1,0 +1,213 @@
+-- Question 1
+CREATE OR REPLACE PROCEDURE display_message AS
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('Good Day to You');
+END display_message;
+/
+
+-- Question 2
+CREATE OR REPLACE PROCEDURE list_instructors_and_courses (dept_name IN VARCHAR2) AS
+BEGIN
+    FOR instructor_rec IN (SELECT * FROM instructors WHERE dept_name = list_instructors_and_courses.dept_name) LOOP
+        DBMS_OUTPUT.PUT_LINE('Instructor: ' || instructor_rec.name);
+    END LOOP;
+
+    FOR course_rec IN (SELECT * FROM courses WHERE dept_name = list_instructors_and_courses.dept_name) LOOP
+        DBMS_OUTPUT.PUT_LINE('Course: ' || course_rec.course_id || ' - ' || course_rec.title);
+    END LOOP;
+END list_instructors_and_courses;
+/
+
+DECLARE
+BEGIN
+    list_instructors_and_courses('Computer Science');
+END;
+/
+
+-- Question 3
+CREATE OR REPLACE PROCEDURE course_popular (dept_name IN VARCHAR2) AS
+    popular_course VARCHAR2(100);
+BEGIN
+    SELECT course_id INTO popular_course
+    FROM (
+        SELECT course_id, COUNT(*) AS student_count
+        FROM enrollments
+        WHERE course_id IN (
+            SELECT course_id
+            FROM courses
+            WHERE dept_name = course_popular.dept_name
+        )
+        GROUP BY course_id
+        ORDER BY COUNT(*) DESC
+    )
+    WHERE ROWNUM = 1;
+    
+    DBMS_OUTPUT.PUT_LINE('Most popular course in ' || dept_name || ': ' || popular_course);
+END course_popular;
+/
+
+DECLARE
+    dept_cursor SYS_REFCURSOR;
+    dept_name departments.dept_name%TYPE;
+BEGIN
+    OPEN dept_cursor FOR
+    SELECT dept_name FROM departments;
+
+    LOOP
+        FETCH dept_cursor INTO dept_name;
+        EXIT WHEN dept_cursor%NOTFOUND;
+        
+        DBMS_OUTPUT.PUT_LINE('For department ' || dept_name || ':');
+        course_popular(dept_name);
+    END LOOP;
+
+    CLOSE dept_cursor;
+END;
+/
+
+-- Question 4
+CREATE OR REPLACE PROCEDURE list_students_and_courses (dept_name IN VARCHAR2) AS
+BEGIN
+    FOR student_rec IN (SELECT * FROM students WHERE dept_name = list_students_and_courses.dept_name) LOOP
+        DBMS_OUTPUT.PUT_LINE('Student: ' || student_rec.name);
+    END LOOP;
+
+    FOR course_rec IN (SELECT * FROM courses WHERE dept_name = list_students_and_courses.dept_name) LOOP
+        DBMS_OUTPUT.PUT_LINE('Course: ' || course_rec.course_id || ' - ' || course_rec.title);
+    END LOOP;
+END list_students_and_courses;
+/
+
+DECLARE
+BEGIN
+    list_students_and_courses('Computer Science');
+END;
+/
+
+-- Question 5
+CREATE OR REPLACE FUNCTION square_of_number (num IN NUMBER) RETURN NUMBER IS
+    result NUMBER;
+BEGIN
+    result := num * num;
+    RETURN result;
+END square_of_number;
+/
+
+DECLARE
+    input_number NUMBER := 65;
+    result NUMBER;
+BEGIN
+    result := square_of_number(input_number);
+    DBMS_OUTPUT.PUT_LINE('Square of ' || input_number || ' is ' || result);
+END;
+/
+
+-- Question 6
+CREATE OR REPLACE FUNCTION department_highest (dept_name IN VARCHAR2) RETURN VARCHAR2 IS
+    highest_paid_instructor VARCHAR2(100);
+BEGIN
+    SELECT name INTO highest_paid_instructor
+    FROM instructors
+    WHERE dept_name = department_highest.dept_name
+    ORDER BY salary DESC
+    FETCH FIRST 1 ROW ONLY;
+    
+    RETURN highest_paid_instructor;
+END department_highest;
+/
+
+DECLARE
+    dept_cursor SYS_REFCURSOR;
+    dept_name departments.dept_name%TYPE;
+BEGIN
+    OPEN dept_cursor FOR
+    SELECT dept_name FROM departments;
+
+    LOOP
+        FETCH dept_cursor INTO dept_name;
+        EXIT WHEN dept_cursor%NOTFOUND;
+        
+        highest_paid_instructor := department_highest(dept_name);
+        
+        DBMS_OUTPUT.PUT_LINE('Highest paid instructor in ' || dept_name || ': ' || highest_paid_instructor);
+    END LOOP;
+
+    CLOSE dept_cursor;
+END;
+/
+
+-- Question 7
+CREATE OR REPLACE PACKAGE university_package AS
+    PROCEDURE list_instructor_names(dept_name IN VARCHAR2);
+    FUNCTION max_salary_for_department(dept_name IN VARCHAR2) RETURN NUMBER;
+END university_package;
+/
+
+CREATE OR REPLACE PACKAGE BODY university_package AS
+    PROCEDURE list_instructor_names(dept_name IN VARCHAR2) IS
+    BEGIN
+        FOR instructor_rec IN (SELECT name FROM instructors WHERE dept_name = list_instructor_names.dept_name) LOOP
+            DBMS_OUTPUT.PUT_LINE('Instructor Name: ' || instructor_rec.name);
+        END LOOP;
+    END list_instructor_names;
+
+    FUNCTION max_salary_for_department(dept_name IN VARCHAR2) RETURN NUMBER IS
+        max_sal NUMBER;
+    BEGIN
+        SELECT MAX(salary) INTO max_sal
+        FROM instructors
+        WHERE dept_name = max_salary_for_department.dept_name;
+        
+        RETURN max_sal;
+    END max_salary_for_department;
+END university_package;
+/
+
+DECLARE
+    max_sal NUMBER;
+BEGIN
+    university_package.list_instructor_names('Computer Science');
+    max_sal := university_package.max_salary_for_department('Computer Science');
+    DBMS_OUTPUT.PUT_LINE('Maximum salary in Computer Science department: ' || max_sal);
+END;
+/
+
+-- Question 8
+CREATE OR REPLACE PROCEDURE calculate_interest(
+    principle IN NUMBER,
+    rate IN NUMBER,
+    years IN NUMBER,
+    simple_interest OUT NUMBER,
+    compound_interest OUT NUMBER,
+    total_sum IN OUT NUMBER
+) AS
+BEGIN
+    -- Calculating simple interest
+    simple_interest := (principle * rate * years) / 100;
+    
+    -- Calculating compound interest
+    compound_interest := principle * (POWER((1 + rate / 100), years) - 1);
+    
+    -- Calculating total sum
+    total_sum := principle + simple_interest + compound_interest;
+END calculate_interest;
+/
+
+DECLARE
+    principle_amt NUMBER := 1000;
+    rate_of_interest NUMBER := 5; -- in percentage
+    years_period NUMBER := 3;
+    simple_int NUMBER;
+    compound_int NUMBER;
+    total_amount NUMBER := 0;
+BEGIN
+    calculate_interest(principle_amt, rate_of_interest, years_period, simple_int, compound_int, total_amount);
+    
+    DBMS_OUTPUT.PUT_LINE('Principle Amount: ' || principle_amt);
+    DBMS_OUTPUT.PUT_LINE('Rate of Interest: ' || rate_of_interest || '%');
+    DBMS_OUTPUT.PUT_LINE('Number of Years: ' || years_period);
+    DBMS_OUTPUT.PUT_LINE('Simple Interest: ' || simple_int);
+    DBMS_OUTPUT.PUT_LINE('Compound Interest: ' || compound_int);
+    DBMS_OUTPUT.PUT_LINE('Total Sum: ' || total_amount);
+END;
+/
